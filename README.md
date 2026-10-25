@@ -3,6 +3,10 @@
 Backend Sistem Informasi Manajemen Magang dan Keuangan Metro Software.
 Node.js 22 + Express 5, Prisma 6 (MySQL 8), Zod 4. REST API di `/api/v1`.
 
+Baca dulu:
+- [docs/KONTEKS-PROJECT.md](docs/KONTEKS-PROJECT.md): ringkasan PRD, role & permission, daftar endpoint, aturan bisnis
+- [docs/PANDUAN-KERJA-BE.md](docs/PANDUAN-KERJA-BE.md): pembagian tugas, Git, migration, aturan kode, Definition of Done
+
 ## Menjalankan di lokal
 
 ```bash
