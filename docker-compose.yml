@@ -1,0 +1,17 @@
+# Hanya untuk development lokal: menyalakan MySQL 8.
+# Aplikasi dijalankan langsung dengan `npm run dev`.
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: metrohub-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: metrohub
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

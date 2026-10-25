@@ -1,0 +1,35 @@
+// ===== MODUL KEUANGAN (awalan tabel: ku_) =====
+// Tidak punya relasi ke tabel modul lain.
+
+enum JenisTransaksi {
+  PEMASUKAN
+  PENGELUARAN
+}
+
+model KuCategory {
+  id           Int             @id @default(autoincrement())
+  nama         String          @db.VarChar(100)
+  jenis        JenisTransaksi
+  aktif        Boolean         @default(true)
+  transactions KuTransaction[]
+
+  @@unique([nama, jenis])
+  @@map("ku_categories")
+}
+
+model KuTransaction {
+  id          Int            @id @default(autoincrement())
+  tanggal     DateTime       @db.Date
+  jenis       JenisTransaksi
+  category_id Int
+  nominal     Decimal        @db.Decimal(15, 2)
+  keterangan  String?        @db.Text
+  dibuat_oleh Int // id pengguna, tanpa FK (audit)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+  deleted_at  DateTime? // soft delete (BR-10)
+  category    KuCategory     @relation(fields: [category_id], references: [id])
+
+  @@index([tanggal])
+  @@map("ku_transactions")
+}

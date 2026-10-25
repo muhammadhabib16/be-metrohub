@@ -1,0 +1,14 @@
+node_modules/
+.env
+
+# Foto absensi (lokal)
+uploads/*
+!uploads/.gitkeep
+
+# Hasil build frontend
+public/*
+!public/.gitkeep
+
+npm-debug.log*
+*.log
+.DS_Store

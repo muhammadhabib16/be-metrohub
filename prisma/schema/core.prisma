@@ -1,0 +1,47 @@
+// ===== CORE (awalan tabel: core_) =====
+
+model CoreRole {
+  id          Int                  @id @default(autoincrement())
+  nama        String               @unique @db.VarChar(50)
+  users       CoreUser[]
+  permissions CoreRolePermission[]
+
+  @@map("core_roles")
+}
+
+model CoreRolePermission {
+  role_id    Int
+  permission String   @db.VarChar(60)
+  role       CoreRole @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission])
+  @@map("core_role_permissions")
+}
+
+model CoreUser {
+  id            Int      @id @default(autoincrement())
+  nama          String   @db.VarChar(100)
+  email         String   @unique @db.VarChar(150)
+  password_hash String   @db.VarChar(255)
+  role_id       Int
+  aktif         Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  role          CoreRole @relation(fields: [role_id], references: [id])
+
+  // Back-relation yang diwajibkan Prisma untuk mg_interns.user_id.
+  // Ini satu-satunya relasi lintas modul; core tidak boleh memakainya untuk query data magang.
+  intern MgIntern?
+
+  @@map("core_users")
+}
+
+// Hanya berisi satu baris (id = 1).
+model CoreOfficeSetting {
+  id           Int     @id
+  latitude     Decimal @db.Decimal(10, 7)
+  longitude    Decimal @db.Decimal(10, 7)
+  radius_meter Int
+
+  @@map("core_office_settings")
+}

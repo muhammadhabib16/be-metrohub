@@ -1,0 +1,77 @@
+// ===== MODUL MAGANG (awalan tabel: mg_) =====
+
+enum StatusKerja {
+  ONSITE
+  REMOTE
+}
+
+enum StatusTugas {
+  BELUM_DIKERJAKAN
+  DIKERJAKAN
+  SELESAI
+}
+
+model MgIntern {
+  id              Int            @id @default(autoincrement())
+  user_id         Int            @unique
+  asal_kampus     String         @db.VarChar(150)
+  tanggal_mulai   DateTime       @db.Date
+  tanggal_selesai DateTime       @db.Date
+  status_kerja    StatusKerja    @default(ONSITE)
+  user            CoreUser       @relation(fields: [user_id], references: [id])
+  attendances     MgAttendance[]
+  logbooks        MgLogbook[]
+  tasks           MgTask[]
+
+  @@map("mg_interns")
+}
+
+model MgAttendance {
+  id                   Int       @id @default(autoincrement())
+  intern_id            Int
+  tanggal              DateTime  @db.Date
+  jam_checkin          DateTime
+  foto_checkin         String    @db.VarChar(255)
+  lat_checkin          Decimal   @db.Decimal(10, 7)
+  lng_checkin          Decimal   @db.Decimal(10, 7)
+  jarak_checkin_meter  Int?
+  jam_checkout         DateTime?
+  foto_checkout        String?   @db.VarChar(255)
+  lat_checkout         Decimal?  @db.Decimal(10, 7)
+  lng_checkout         Decimal?  @db.Decimal(10, 7)
+  jarak_checkout_meter Int?
+  keterangan_koreksi   String?   @db.Text
+  dikoreksi_oleh       Int? // id pengguna, tanpa FK (audit)
+  intern               MgIntern  @relation(fields: [intern_id], references: [id])
+
+  @@unique([intern_id, tanggal])
+  @@map("mg_attendances")
+}
+
+model MgLogbook {
+  id         Int      @id @default(autoincrement())
+  intern_id  Int
+  tanggal    DateTime @db.Date
+  isi        String   @db.Text
+  updated_at DateTime @updatedAt
+  intern     MgIntern @relation(fields: [intern_id], references: [id])
+
+  @@unique([intern_id, tanggal])
+  @@map("mg_logbooks")
+}
+
+model MgTask {
+  id              Int         @id @default(autoincrement())
+  intern_id       Int
+  judul           String      @db.VarChar(150)
+  deskripsi       String      @db.Text
+  tenggat         DateTime    @db.Date
+  status          StatusTugas @default(BELUM_DIKERJAKAN)
+  catatan_progres String?     @db.Text
+  dibuat_oleh     Int // id pengguna, tanpa FK (audit)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+  intern          MgIntern    @relation(fields: [intern_id], references: [id])
+
+  @@map("mg_tasks")
+}

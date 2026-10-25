@@ -1,0 +1,12 @@
+// File utama: hanya generator dan datasource.
+// Model ada di file per modul: core.prisma, magang.prisma, keuangan.prisma.
+// Folder migrations/ dibuat Prisma di folder ini (sejajar dengan file ini).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
