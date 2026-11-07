@@ -1,0 +1,52 @@
+# Produksi di homeserver: aplikasi (API + frontend) dan MySQL 8.
+# Jalankan: docker compose -f docker-compose.prod.yml up -d --build
+# Panduan lengkap: docs/DEPLOY-HOMESERVER.md
+services:
+  app:
+    build: .
+    image: metrohub-app:latest
+    container_name: metrohub-app
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Path di dalam container; isinya disimpan di volume/folder host di bawah
+      UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+    volumes:
+      - uploads:/data/uploads # foto absensi (privat, NF-06)
+      - ./backups:/data/backups # hasil backup harian, ada di host agar mudah disalin ke luar
+    # Hanya terbuka untuk reverse proxy di host yang sama. Jangan port-forward 3000 ke internet:
+    # tanpa HTTPS, kamera & GPS browser tidak berjalan dan cookie login (secure) tidak tersimpan.
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+  mysql:
+    image: mysql:8.0
+    container_name: metrohub-mysql
+    restart: unless-stopped
+    # MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD dibaca dari file ini
+    env_file: .env.production
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # Tidak ada "ports": database hanya bisa diakses dari container app lewat jaringan internal compose.
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+volumes:
+  uploads:
+  mysql_data:
