@@ -6,6 +6,7 @@ Node.js 22 + Express 5, Prisma 6 (MySQL 8), Zod 4. REST API di `/api/v1`.
 Baca dulu:
 - [docs/KONTEKS-PROJECT.md](docs/KONTEKS-PROJECT.md): ringkasan PRD, role & permission, daftar endpoint, aturan bisnis
 - [docs/PANDUAN-KERJA-BE.md](docs/PANDUAN-KERJA-BE.md): pembagian tugas, Git, migration, aturan kode, Definition of Done
+- [docs/PANDUAN-API.md](docs/PANDUAN-API.md): cara mengakses dan memakai API (untuk frontend & QA)
 
 ## Menjalankan di lokal
 
