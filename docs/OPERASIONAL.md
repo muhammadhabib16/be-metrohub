@@ -27,7 +27,7 @@ docker compose -p metrohub-qa -f docker-compose.test.yml down
 
 Database test di Compose memakai tmpfs dan port loopback terpisah. Untuk MySQL portabel, buat database dengan nama yang sama lalu isi TEST_DATABASE_URL dengan port/kredensial instance tersebut. Jangan menggunakan URL development atau production untuk menjalankan test.
 
-Koleksi Postman di `docs/postman` dapat dijalankan setelah migrasi dan seed. Atur Working Directory ke `docs/postman` agar foto-uji.jpg ditemukan. Gunakan database pengujian terpisah karena koleksi membuat dan mengubah data.
+Koleksi Postman di `docs/postman` dapat dijalankan setelah migrasi dan seed. Variabel `adminPassword` sengaja kosong; isi dengan nilai SEED_ADMIN_PASSWORD (di Postman lewat tab Variables, di Newman dengan `--env-var adminPassword=...`). Atur Working Directory ke `docs/postman` agar foto-uji.jpg ditemukan. Gunakan database pengujian terpisah karena koleksi membuat dan mengubah data.
 
 ## Kontrak keuangan
 

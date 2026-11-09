@@ -15,7 +15,8 @@
     },
     {
       "key": "adminPassword",
-      "value": "admin12345"
+      "value": "",
+      "description": "Isi dengan SEED_ADMIN_PASSWORD dari .env (Newman: --env-var adminPassword=...). Sengaja dikosongkan agar password tidak tersimpan di repo."
     },
     {
       "key": "kantorLat",

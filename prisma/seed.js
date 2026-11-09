@@ -28,9 +28,21 @@ async function seedRoles() {
   return roles;
 }
 
-async function seedAdmin(roleAdmin) {
-  const email = process.env.SEED_ADMIN_EMAIL || 'admin@metrohub.local';
-  const password = process.env.SEED_ADMIN_PASSWORD || 'admin12345';
+// Kredensial admin pertama wajib dari environment, tidak ada nilai bawaan di kode.
+// Dicek sebelum menyentuh database agar seed tidak berjalan setengah.
+function bacaKredensialAdmin() {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim();
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!email || !password) {
+    throw new Error('SEED_ADMIN_EMAIL dan SEED_ADMIN_PASSWORD wajib diisi di .env sebelum menjalankan seed');
+  }
+  if (password.length < 8) {
+    throw new Error('SEED_ADMIN_PASSWORD minimal 8 karakter');
+  }
+  return { email, password };
+}
+
+async function seedAdmin(roleAdmin, { email, password }) {
   await prisma.coreUser.upsert({
     where: { email },
     create: {
@@ -55,8 +67,9 @@ async function seedOfficeSettings() {
 }
 
 async function main() {
+  const kredensialAdmin = bacaKredensialAdmin();
   const roles = await seedRoles();
-  await seedAdmin(roles[ROLES.ADMIN]);
+  await seedAdmin(roles[ROLES.ADMIN], kredensialAdmin);
   await seedOfficeSettings();
   console.log('Seed selesai.');
 }
