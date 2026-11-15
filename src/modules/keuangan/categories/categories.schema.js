@@ -1,6 +1,5 @@
 const { z } = require('zod');
-
-const jenis = z.enum(['PEMASUKAN', 'PENGELUARAN']);
+const { jenisTransaksi: jenis } = require('../keuangan.schema');
 
 const listQuery = z.object({
   jenis: jenis.optional(),
@@ -9,13 +8,14 @@ const listQuery = z.object({
 
 // KU-01
 const createSchema = z.object({
-  nama: z.string().trim().min(1).max(100),
+  nama: z.string().trim().min(1, 'Nama kategori wajib diisi').max(100),
   jenis,
+  aktif: z.boolean().default(true),
 });
 
 const updateSchema = z
   .object({
-    nama: z.string().trim().min(1).max(100),
+    nama: z.string().trim().min(1, 'Nama kategori wajib diisi').max(100),
     aktif: z.boolean(),
   })
   .partial()

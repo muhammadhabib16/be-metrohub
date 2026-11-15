@@ -83,13 +83,50 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
     assert.equal((await call('GET', '/auth/me', undefined, legacy)).status, 401);
   });
   await t.test('KU-01 kategori, duplikasi, nominal, dan jenis', async () => {
-    let result = await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis: 'PEMASUKAN' }, adminToken);
+    let result = await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis: 'pemasukan', aktif: true }, adminToken);
     assert.equal(result.status, 201); income = result.json.data;
-    result = await call('POST', '/keuangan/categories', { nama: 'Operasional', jenis: 'PENGELUARAN' }, adminToken);
+    assert.equal(income.jenis, 'PEMASUKAN'); assert.equal(income.jumlah_transaksi, 0);
+    result = await call('POST', '/keuangan/categories', { nama: 'Operasional', jenis: 'pengeluaran', aktif: true }, adminToken);
     assert.equal(result.status, 201); expense = result.json.data;
-    assert.equal((await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis: 'PEMASUKAN' }, adminToken)).status, 409);
+    assert.equal(expense.jenis, 'PENGELUARAN'); assert.equal(expense.jumlah_transaksi, 0);
+    for (const jenis of ['pemasukan', 'PEMASUKAN']) {
+      assert.equal((await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis }, adminToken)).status, 409);
+    }
+    const bad = await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis: 'transfer' }, adminToken);
+    assert.equal(bad.status, 400); assert.equal(bad.json.details[0].field, 'jenis');
     assert.equal((await call('POST', '/keuangan/transactions', { tanggal: today, jenis: 'PEMASUKAN', category_id: income.id, nominal: 0 }, adminToken)).status, 400);
     assert.equal((await call('POST', '/keuangan/transactions', { tanggal: today, jenis: 'PEMASUKAN', category_id: expense.id, nominal: 100 }, adminToken)).status, 400);
+  });
+  await t.test('KU-01 siklus kategori form, filter, jumlah penggunaan, dan proteksi riwayat', async () => {
+    const created = await call('POST', '/keuangan/categories', { nama: 'Kategori Form', jenis: 'pemasukan', aktif: false }, adminToken);
+    assert.equal(created.status, 201); const kategori = created.json.data;
+    assert.equal(kategori.aktif, false); assert.equal(kategori.jumlah_transaksi, 0);
+    let result = await call('GET', '/keuangan/categories?jenis=pemasukan&aktif=true', undefined, adminToken);
+    assert.equal(result.status, 200); assert.ok(!result.json.data.some((row) => row.id === kategori.id));
+    const payload = { tanggal: '1998-02-01', jenis: 'pemasukan', category_id: kategori.id, nominal: 123.45 };
+    assert.equal((await call('POST', '/keuangan/transactions', payload, adminToken)).status, 400);
+    result = await call('PATCH', `/keuangan/categories/${kategori.id}`, { nama: 'Kategori Form Baru', jenis: 'pemasukan', aktif: true }, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.aktif, true);
+    result = await call('POST', '/keuangan/transactions', payload, adminToken);
+    assert.equal(result.status, 201); const transaksi = result.json.data;
+    result = await call('PATCH', `/keuangan/categories/${kategori.id}`, { nama: 'Kategori Form Final' }, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.jumlah_transaksi, 1);
+    result = await call('GET', '/keuangan/transactions?bulan=1998-02&jenis=pemasukan', undefined, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.transaksi[0].kategori, 'Kategori Form Final');
+    assert.equal(result.json.data.saldo_akhir, 123.45);
+    assert.equal((await call('DELETE', `/keuangan/categories/${kategori.id}`, undefined, adminToken)).status, 409);
+    assert.equal((await call('PATCH', `/keuangan/categories/${kategori.id}`, { aktif: false }, adminToken)).status, 200);
+    assert.equal((await call('POST', '/keuangan/transactions', payload, adminToken)).status, 400);
+    assert.equal((await call('PATCH', `/keuangan/transactions/${transaksi.id}`, { nominal: 100 }, adminToken)).status, 200);
+    assert.equal((await call('DELETE', `/keuangan/transactions/${transaksi.id}`, undefined, adminToken)).status, 200);
+    result = await call('GET', '/keuangan/categories?jenis=pemasukan&aktif=false', undefined, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.find((row) => row.id === kategori.id).jumlah_transaksi, 1);
+    assert.equal((await call('DELETE', `/keuangan/categories/${kategori.id}`, undefined, adminToken)).status, 409);
+    result = await call('GET', '/keuangan/summary?bulan=1998-02', undefined, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.saldo, 0); assert.deepEqual(result.json.data.per_kategori, []);
+    result = await call('POST', '/keuangan/categories', { nama: 'Kategori Form', jenis: 'pengeluaran' }, adminToken);
+    assert.equal(result.status, 201); assert.equal(result.json.data.aktif, true);
+    assert.equal((await call('DELETE', `/keuangan/categories/${result.json.data.id}`, undefined, adminToken)).status, 200);
   });
   await t.test('KU-04 saldo awal, saldo berjalan, urutan, pecahan dan soft delete', async () => {
     for (const [tanggal, jenis, nominal, deleted] of [
@@ -145,7 +182,19 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
     let result = await createIntern('intern-a@test.local'); assert.equal(result.status, 201); internA = result.json.data;
     result = await createIntern('intern-b@test.local', 'REMOTE'); assert.equal(result.status, 201); internB = result.json.data;
     tokenA = await login('intern-a@test.local', 'intern-test-123'); tokenB = await login('intern-b@test.local', 'intern-test-123');
-    assert.equal((await call('GET', '/keuangan/summary', undefined, tokenA)).status, 403);
+    for (const [method, route, body] of [
+      ['GET', '/keuangan/categories'],
+      ['POST', '/keuangan/categories', { nama: 'Tidak Diizinkan', jenis: 'pemasukan' }],
+      ['PATCH', `/keuangan/categories/${income.id}`, { aktif: false }],
+      ['DELETE', `/keuangan/categories/${income.id}`],
+      ['GET', '/keuangan/transactions'],
+      ['POST', '/keuangan/transactions', { tanggal: today, jenis: 'pemasukan', category_id: income.id, nominal: 100 }],
+      ['PATCH', '/keuangan/transactions/1', { nominal: 100 }],
+      ['DELETE', '/keuangan/transactions/1'],
+      ['GET', '/keuangan/summary'],
+    ]) {
+      assert.equal((await call(method, route, body, tokenA)).status, 403, `${method} ${route}`);
+    }
     assert.equal((await call('PATCH', `/magang/interns/${internA.id}/status-kerja`, { status_kerja: 'REMOTE' }, tokenA)).status, 403);
     assert.equal((await call('GET', '/magang/interns/me', undefined, tokenA)).json.data.sisa_hari > 0, true);
   });
@@ -197,6 +246,47 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
     assert.equal(rekap.json.data.length, 1); assert.equal(rekap.json.data[0].nama_admin_koreksi, admin.nama);
     assert.equal((await call('PATCH', `/magang/attendances/${attendance.id}`, { jam_checkout: '2000-01-01T00:00:00Z', keterangan_koreksi: 'Invalid' }, adminToken)).status, 400);
     assert.equal((await call('PATCH', `/magang/attendances/${attendance.id}`, { keterangan_koreksi: '' }, adminToken)).status, 400);
+  });
+  await t.test('MG-10 kasus screenshot: koreksi checkout WIB pada absensi tanggal lampau', async () => {
+    const original = await prisma.mgAttendance.create({ data: {
+      intern_id: internA.id, tanggal: keTanggalDb('2026-11-13'),
+      jam_checkin: new Date('2026-11-13T17:06:27+07:00'),
+      foto_checkin: 'fixture-koreksi.jpg', lat_checkin: 0, lng_checkin: 0,
+    } });
+    const route = `/magang/attendances/${original.id}`;
+    const payload = {
+      jam_checkout: '2026-11-13T19:00:00+07:00',
+      keterangan_koreksi: 'Sistem mengalami kendala, peserta hadir sesuai konfirmasi pembimbing',
+    };
+    assert.equal((await call('PATCH', route, payload, tokenA)).status, 403);
+    let result = await call('PATCH', route, payload, adminToken);
+    assert.equal(result.status, 200, JSON.stringify(result.json));
+    assert.equal(result.json.data.tanggal, '2026-11-13');
+    assert.equal(result.json.data.jam_checkin, '2026-11-13T10:06:27.000Z');
+    assert.equal(result.json.data.jam_checkout, '2026-11-13T12:00:00.000Z');
+    assert.equal(result.json.data.keterangan_koreksi, payload.keterangan_koreksi);
+    assert.equal(result.json.data.dikoreksi_oleh, admin.id);
+    assert.equal(result.json.data.nama_admin_koreksi, admin.nama);
+    for (const invalid of [
+      { jam_checkout: '2026-11-13T17:05:00+07:00', keterangan_koreksi: 'Jam terbalik' },
+      { jam_checkout: '19:00', keterangan_koreksi: 'Format salah' },
+      { jam_checkout: '2026-11-13T19:00:00+07:00', keterangan_koreksi: '   ' },
+      { jam_checkout: '2026-11-13T19:00:00+07:00' },
+    ]) {
+      assert.equal((await call('PATCH', route, invalid, adminToken)).status, 400);
+      const unchanged = await prisma.mgAttendance.findUnique({ where: { id: original.id } });
+      assert.equal(unchanged.jam_checkout.toISOString(), '2026-11-13T12:00:00.000Z');
+      assert.equal(unchanged.keterangan_koreksi, payload.keterangan_koreksi);
+    }
+    result = await call('PATCH', route, { keterangan_koreksi: 'Hanya memperbarui catatan' }, adminToken);
+    assert.equal(result.status, 200);
+    assert.equal(result.json.data.jam_checkin, '2026-11-13T10:06:27.000Z');
+    assert.equal(result.json.data.jam_checkout, '2026-11-13T12:00:00.000Z');
+    result = await call('GET', '/magang/attendances?intern_id=' + internA.id + '&dari=2026-11-13&sampai=2026-11-13', undefined, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.length, 1);
+    assert.equal(result.json.data[0].nama_admin_koreksi, admin.nama);
+    result = await call('PATCH', route, { jam_checkout: null, keterangan_koreksi: 'Membatalkan jam checkout yang keliru' }, adminToken);
+    assert.equal(result.status, 200); assert.equal(result.json.data.jam_checkout, null);
   });
   await t.test('MG-06/07/08 tugas terlambat, ownership, format tenggat dan progres', async () => {
     const created = await call('POST', '/magang/tasks', { intern_id: internA.id, judul: 'Uji tugas', deskripsi: 'Selesaikan tugas', tenggat: '2000-01-01' }, adminToken);

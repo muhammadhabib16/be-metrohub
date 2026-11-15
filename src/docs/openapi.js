@@ -184,7 +184,7 @@ const schemas = {
     created_at: waktu,
     updated_at: waktu,
   }),
-  Category: obj({ id: int, nama: str, jenis: { type: 'string', enum: ['PEMASUKAN', 'PENGELUARAN'] }, aktif: bool }),
+  Category: obj({ id: int, nama: str, jenis: { type: 'string', enum: ['PEMASUKAN', 'PENGELUARAN'] }, aktif: bool, jumlah_transaksi: { ...int, description: 'Jumlah seluruh transaksi yang memakai kategori, termasuk yang soft delete' } }),
   Transaction: obj({
     id: int,
     tanggal: tgl,

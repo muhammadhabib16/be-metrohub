@@ -1,6 +1,13 @@
 const prisma = require('../../../config/prisma');
 const { AppError } = require('../../../shared/utils/AppError');
 
+// Termasuk transaksi soft delete: kategori tersebut tetap tidak boleh dihapus.
+const penggunaan = { _count: { select: { transactions: true } } };
+const formatKategori = ({ _count, ...kategori }) => ({
+  ...kategori,
+  jumlah_transaksi: _count.transactions,
+});
+
 async function pastikanNamaUnik(nama, jenis, kecualiId) {
   const ada = await prisma.kuCategory.findUnique({ where: { nama_jenis: { nama, jenis } } });
   if (ada && ada.id !== kecualiId) throw new AppError(409, 'Kategori dengan nama dan jenis ini sudah ada');
@@ -14,25 +21,29 @@ async function getById(id) {
 
 // KU-01: filter jenis dan aktif
 async function list({ jenis, aktif } = {}) {
-  return prisma.kuCategory.findMany({
+  const kategori = await prisma.kuCategory.findMany({
     where: {
       ...(jenis && { jenis }),
       ...(aktif !== undefined && { aktif }),
     },
+    include: penggunaan,
     orderBy: [{ jenis: 'asc' }, { nama: 'asc' }],
   });
+  return kategori.map(formatKategori);
 }
 
-async function create({ nama, jenis }) {
+async function create({ nama, jenis, aktif = true }) {
   await pastikanNamaUnik(nama, jenis);
-  return prisma.kuCategory.create({ data: { nama, jenis } });
+  const kategori = await prisma.kuCategory.create({ data: { nama, jenis, aktif }, include: penggunaan });
+  return formatKategori(kategori);
 }
 
 // Jenis kategori sengaja tidak bisa diubah agar transaksi lama tetap konsisten
 async function update(id, data) {
   const kategori = await getById(id);
   if (data.nama) await pastikanNamaUnik(data.nama, kategori.jenis, id);
-  return prisma.kuCategory.update({ where: { id }, data });
+  const hasil = await prisma.kuCategory.update({ where: { id }, data, include: penggunaan });
+  return formatKategori(hasil);
 }
 
 // KU-01: kategori yang sudah dipakai transaksi (termasuk yang soft delete) hanya bisa dinonaktifkan

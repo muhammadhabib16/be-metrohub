@@ -1,7 +1,6 @@
 const { z } = require('zod');
 const { tanggal, bulan, periodeQuery } = require('../../../shared/utils/commonSchemas');
-
-const jenis = z.enum(['PEMASUKAN', 'PENGELUARAN']);
+const { jenisTransaksi: jenis } = require('../keuangan.schema');
 
 // KU-04: ?bulan=YYYY-MM atau ?dari=&sampai=
 const listQuery = periodeQuery.and(
