@@ -7,8 +7,32 @@ process.env.APP_URL = 'http://localhost:3000';
 const jwt = require('jsonwebtoken');
 const { randomUUID } = require('node:crypto');
 const { listQuery, createSchema } = require('../src/modules/keuangan/transactions/transactions.schema');
+const categoriesSchema = require('../src/modules/keuangan/categories/categories.schema');
 const { verifikasiToken, ambilToken } = require('../src/core/auth/session');
 const { rentangBulan, keTanggalDb, selisihHari } = require('../src/shared/utils/date');
+
+test('payload kategori dari form frontend dinormalisasi dan status dipertahankan', () => {
+  for (const jenis of ['pemasukan', 'pengeluaran', 'PEMASUKAN', 'PENGELUARAN']) {
+    const kategori = categoriesSchema.createSchema.parse({ nama: ' Operasional Kantor ', jenis, aktif: false });
+    assert.deepEqual(kategori, { nama: 'Operasional Kantor', jenis: jenis.toUpperCase(), aktif: false });
+    assert.equal(categoriesSchema.listQuery.parse({ jenis, aktif: 'true' }).jenis, jenis.toUpperCase());
+    assert.equal(listQuery.parse({ jenis }).jenis, jenis.toUpperCase());
+    assert.equal(createSchema.parse({ tanggal: '2026-11-01', jenis, category_id: 1, nominal: 100 }).jenis, jenis.toUpperCase());
+  }
+  assert.equal(categoriesSchema.createSchema.parse({ nama: 'Jasa', jenis: 'pemasukan' }).aktif, true);
+  assert.deepEqual(categoriesSchema.updateSchema.parse({ nama: 'Jasa Baru', jenis: 'pemasukan', aktif: false }), { nama: 'Jasa Baru', aktif: false });
+});
+
+test('normalisasi jenis tetap menolak jenis sembarang, nama kosong, dan status bukan boolean', () => {
+  for (const jenis of ['', 'transfer', null, 1]) {
+    assert.equal(categoriesSchema.createSchema.safeParse({ nama: 'Jasa', jenis }).success, false);
+    assert.equal(categoriesSchema.listQuery.safeParse({ jenis }).success, false);
+    assert.equal(listQuery.safeParse({ jenis }).success, false);
+    assert.equal(createSchema.safeParse({ tanggal: '2026-11-01', jenis, category_id: 1, nominal: 100 }).success, false);
+  }
+  assert.equal(categoriesSchema.createSchema.safeParse({ nama: ' ', jenis: 'pemasukan' }).success, false);
+  assert.equal(categoriesSchema.createSchema.safeParse({ nama: 'Jasa', jenis: 'pemasukan', aktif: 'false' }).success, false);
+});
 
 test('filter periode menolak tanggal terbalik dan kombinasi bulan/rentang', () => {
   assert.equal(listQuery.safeParse({ dari: '2026-11-10', sampai: '2026-11-01' }).success, false);
@@ -51,6 +75,10 @@ test('OpenAPI menampilkan kontrak keuangan dan tidak menandai fitur sebagai 501'
   const spec = require('../src/docs/openapi');
   assert.ok(spec.components.schemas.Ledger);
   assert.ok(spec.components.schemas.FinancialSummary);
+  assert.equal(spec.components.schemas.Category.properties.jumlah_transaksi.type, 'integer');
+  const kategori = spec.paths['/keuangan/categories'].post.requestBody.content['application/json'].schema;
+  assert.ok(kategori.properties.jenis.enum.includes('pemasukan'));
+  assert.equal(kategori.properties.aktif.default, true);
   assert.deepEqual(spec.paths['/keuangan/transactions'].get.parameters.map((p) => p.name).sort(), ['bulan', 'category_id', 'dari', 'jenis', 'sampai']);
   assert.deepEqual(spec.paths['/magang/attendances'].get.parameters.map((p) => p.name).sort(), ['dari', 'intern_id', 'sampai']);
   for (const path of Object.values(spec.paths)) {

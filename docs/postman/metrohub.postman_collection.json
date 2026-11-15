@@ -947,7 +947,7 @@
       "name": "KU-01 Kategori",
       "item": [
         {
-          "name": "Tambah kategori pemasukan [201]",
+          "name": "Tambah kategori pemasukan dari form frontend [201]",
           "request": {
             "method": "POST",
             "header": [
@@ -968,7 +968,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nama\": \"Penjualan Jasa {{run}}\",\n  \"jenis\": \"PEMASUKAN\"\n}",
+              "raw": "{\n  \"nama\": \"Penjualan Jasa {{run}}\",\n  \"jenis\": \"pemasukan\",\n  \"aktif\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -983,14 +983,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('katMasukId', pm.response.json().data.id);"
+                  "pm.collectionVariables.set('katMasukId', pm.response.json().data.id);",
+                  "pm.test('jenis dinormalisasi dan jumlah penggunaan nol', () => { const data = pm.response.json().data; pm.expect(data.jenis).to.eql('PEMASUKAN'); pm.expect(data.aktif).to.eql(true); pm.expect(data.jumlah_transaksi).to.eql(0); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Tambah kategori pengeluaran [201]",
+          "name": "Tambah kategori pengeluaran dari form frontend [201]",
           "request": {
             "method": "POST",
             "header": [
@@ -1011,7 +1012,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nama\": \"Gaji Karyawan {{run}}\",\n  \"jenis\": \"PENGELUARAN\"\n}",
+              "raw": "{\n  \"nama\": \"Gaji Karyawan {{run}}\",\n  \"jenis\": \"pengeluaran\",\n  \"aktif\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"

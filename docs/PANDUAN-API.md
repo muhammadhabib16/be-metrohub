@@ -377,6 +377,14 @@ POST /api/v1/keuangan/transactions
 
 - **Dropdown kategori** di form transaksi: ambil dengan `GET /keuangan/categories?jenis=<jenis terpilih>&aktif=true`.
   Backend menolak kategori yang jenisnya berbeda atau sudah nonaktif.
+- **Jenis** pada kategori, transaksi, dan filter menerima `PEMASUKAN`/`PENGELUARAN` maupun
+  `pemasukan`/`pengeluaran`. Respons dan penyimpanan selalu memakai huruf kapital.
+- **Status kategori baru** dapat dikirim sebagai `aktif: true` atau `aktif: false` (boolean).
+  Jika tidak dikirim, kategori baru aktif secara default. Jenis kategori tidak dapat diubah;
+  form edit cukup mengirim `nama` dan/atau `aktif`.
+- **Jumlah penggunaan kategori** tersedia sebagai `jumlah_transaksi` pada respons daftar, tambah,
+  dan ubah kategori. Nilai ini termasuk transaksi soft delete: hanya kategori dengan nilai 0
+  yang boleh dihapus. Kategori dengan nilai lebih dari 0 dapat dinonaktifkan.
 - **Nominal** harus lebih dari 0, maksimal 2 angka desimal.
 - **Hapus transaksi** adalah soft delete: data tetap tersimpan sebagai riwayat, tapi tidak dihitung di saldo.
   Tampilkan dialog konfirmasi sebelum memanggil `DELETE` (KU-03).
