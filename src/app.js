@@ -24,8 +24,14 @@ app.set('trust proxy', 1);
 app.use(forceHttps);
 app.use(
   helmet({
-    // blob: dibutuhkan untuk pratinjau foto kamera di frontend
-    contentSecurityPolicy: { directives: { 'img-src': ["'self'", 'data:', 'blob:'] } },
+    // blob: dibutuhkan untuk pratinjau foto kamera di frontend.
+    // frame-src: peta embed Google Maps di halaman Lokasi Kantor.
+    contentSecurityPolicy: {
+      directives: {
+        'img-src': ["'self'", 'data:', 'blob:'],
+        'frame-src': ["'self'", 'https://maps.google.com', 'https://www.google.com'],
+      },
+    },
   }),
 );
 app.use(express.json({ limit: '1mb' }));
