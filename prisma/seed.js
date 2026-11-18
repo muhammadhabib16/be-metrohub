@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 const { ROLES, permissionList: corePermissions } = require('../src/core/permissions');
 const { MAGANG, permissionList: magangPermissions } = require('../src/modules/magang/permissions');
-const { permissionList: keuanganPermissions } = require('../src/modules/keuangan/permissions');
+const { KEUANGAN, permissionList: keuanganPermissions } = require('../src/modules/keuangan/permissions');
 
 const prisma = new PrismaClient();
 
@@ -13,6 +13,8 @@ const semuaPermission = [...corePermissions, ...magangPermissions, ...keuanganPe
 const HAK_AKSES = {
   [ROLES.ADMIN]: semuaPermission.filter((p) => p !== MAGANG.ABSEN),
   [ROLES.ANAK_MAGANG]: [MAGANG.ABSEN],
+  [ROLES.FINANCE]: [KEUANGAN.KELOLA, KEUANGAN.LIHAT],
+  [ROLES.OPERASIONAL_MAGANG]: [MAGANG.KELOLA],
 };
 
 async function seedRoles() {

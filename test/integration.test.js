@@ -23,9 +23,9 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
   const bcrypt = require('bcryptjs');
   const jwt = require('jsonwebtoken');
   const { hariIni, keTanggalDb } = require('../src/shared/utils/date');
-  const { permissionList: core } = require('../src/core/permissions');
-  const { permissionList: mg } = require('../src/modules/magang/permissions');
-  const { permissionList: ku } = require('../src/modules/keuangan/permissions');
+  const { ROLES, permissionList: core } = require('../src/core/permissions');
+  const { MAGANG, permissionList: mg } = require('../src/modules/magang/permissions');
+  const { KEUANGAN, permissionList: ku } = require('../src/modules/keuangan/permissions');
   let server;
   t.after(async () => {
     if (server) await new Promise((resolve) => server.close(resolve));
@@ -40,8 +40,10 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
   for (const table of ['coreSession', 'mgTask', 'mgLogbook', 'mgAttendance', 'mgIntern', 'kuTransaction', 'kuCategory', 'coreUser', 'coreRolePermission', 'coreRole', 'coreOfficeSetting']) {
     await prisma[table].deleteMany();
   }
-  const adminRole = await prisma.coreRole.create({ data: { nama: 'Admin', permissions: { create: [...core, ...mg, ...ku].filter((p) => p.code !== 'magang:absen').map((p) => ({ permission: p.code })) } } });
-  await prisma.coreRole.create({ data: { nama: 'Anak Magang', permissions: { create: { permission: 'magang:absen' } } } });
+  const adminRole = await prisma.coreRole.create({ data: { nama: ROLES.ADMIN, permissions: { create: [...core, ...mg, ...ku].filter((p) => p.code !== MAGANG.ABSEN).map((p) => ({ permission: p.code })) } } });
+  await prisma.coreRole.create({ data: { nama: ROLES.ANAK_MAGANG, permissions: { create: { permission: MAGANG.ABSEN } } } });
+  const financeRole = await prisma.coreRole.create({ data: { nama: ROLES.FINANCE, permissions: { create: [KEUANGAN.KELOLA, KEUANGAN.LIHAT].map((permission) => ({ permission })) } } });
+  const operationsRole = await prisma.coreRole.create({ data: { nama: ROLES.OPERASIONAL_MAGANG, permissions: { create: { permission: MAGANG.KELOLA } } } });
   const admin = await prisma.coreUser.create({ data: { nama: 'Admin Pengujian', email: 'admin@test.local', password_hash: await bcrypt.hash('admin-test-123', 10), role_id: adminRole.id } });
   await prisma.coreOfficeSetting.create({ data: { id: 1, latitude: 0, longitude: 0, radius_meter: 100 } });
   const app = require('../src/app');
@@ -81,6 +83,45 @@ test('backend MetroHub dengan MySQL nyata', async (t) => {
     assert.equal(bad.status, 401); assert.equal(bad.json.message, 'Email atau password salah');
     const legacy = jwt.sign({}, process.env.JWT_SECRET, { subject: String(admin.id), expiresIn: '1h' });
     assert.equal((await call('GET', '/auth/me', undefined, legacy)).status, 401);
+  });
+  await t.test('role Finance dan Operasional Magang dibatasi pada modul masing-masing', async () => {
+    for (const [nama, email, role] of [
+      ['Finance Pengujian', 'finance@test.local', financeRole],
+      ['Operasional Pengujian', 'operasional@test.local', operationsRole],
+    ]) {
+      const created = await call('POST', '/users', { nama, email, password: 'role-test-123', role_id: role.id }, adminToken);
+      assert.equal(created.status, 201, JSON.stringify(created.json));
+    }
+
+    const financeToken = await login('finance@test.local', 'role-test-123');
+    const operationsToken = await login('operasional@test.local', 'role-test-123');
+    assert.equal((await call('GET', '/keuangan/summary', undefined, financeToken)).status, 200);
+    assert.equal((await call('GET', '/magang/interns', undefined, financeToken)).status, 403);
+    assert.equal((await call('GET', '/dashboard', undefined, financeToken)).status, 403);
+    const financeMenu = (await call('GET', '/menu', undefined, financeToken)).json.data;
+    const financeGroups = financeMenu.map((group) => group.group);
+    const financeLabels = financeMenu.flatMap((group) => group.items.map((item) => item.label));
+    assert.ok(financeGroups.includes('Manajemen Keuangan'));
+    assert.ok(!financeGroups.includes('Manajemen Magang'));
+    assert.ok(financeLabels.includes('Profil'));
+    assert.ok(!financeLabels.includes('Pengguna dan Role'));
+    assert.ok(!financeLabels.includes('Lokasi Kantor'));
+
+    assert.equal((await call('GET', '/magang/interns', undefined, operationsToken)).status, 200);
+    assert.equal((await call('GET', '/keuangan/summary', undefined, operationsToken)).status, 403);
+    assert.equal((await call('GET', '/dashboard', undefined, operationsToken)).status, 403);
+    const operationsMenu = (await call('GET', '/menu', undefined, operationsToken)).json.data;
+    const operationsGroups = operationsMenu.map((group) => group.group);
+    const operationsLabels = operationsMenu.flatMap((group) => group.items.map((item) => item.label));
+    assert.ok(operationsGroups.includes('Manajemen Magang'));
+    assert.ok(!operationsGroups.includes('Manajemen Keuangan'));
+    assert.ok(operationsLabels.includes('Profil'));
+    assert.ok(!operationsLabels.includes('Pengguna dan Role'));
+    assert.ok(!operationsLabels.includes('Lokasi Kantor'));
+    assert.equal((await call('GET', '/users', undefined, operationsToken)).status, 403);
+    assert.equal((await call('GET', '/users', undefined, financeToken)).status, 403);
+    assert.ok(!financeGroups.includes('Dashboard'));
+    assert.ok(!operationsGroups.includes('Dashboard'));
   });
   await t.test('KU-01 kategori, duplikasi, nominal, dan jenis', async () => {
     let result = await call('POST', '/keuangan/categories', { nama: 'Jasa', jenis: 'pemasukan', aktif: true }, adminToken);
