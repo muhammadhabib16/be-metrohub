@@ -40,21 +40,25 @@ Berdasarkan wawancara dengan pihak Metro Software:
 
 # Pengguna dan Hak Akses
 
-Tahap 1 memiliki dua role, sesuai keterangan narasumber bahwa modul magang butuh role admin dan anak magang, sedangkan modul keuangan cukup role admin. Pimpinan melihat dashboard menggunakan akun Admin.
+Tahap 1 memiliki empat role agar pengelolaan keuangan dan operasional magang dapat dipisahkan. Pimpinan melihat dashboard menggunakan akun Admin. Finance hanya menangani modul keuangan, sedangkan Operasional Magang hanya menangani modul magang. Kedua role baru tidak mendapat akses ke dashboard perusahaan, pengelolaan pengguna, atau pengaturan lokasi secara bawaan.
 
-| **Role**    | **Siapa**                                         | **Kebutuhan utama**                                                                              |
-|-------------|---------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| Admin       | Pengelola operasional dan pimpinan Metro Software | Memantau anak magang, mengatur status kerja, memberi tugas, mencatat keuangan, melihat dashboard |
-| Anak Magang | Mahasiswa yang sedang magang, on-site atau remote | Absen setiap hari, mengisi logbook, melihat dan memperbarui tugasnya                             |
+| **Role**             | **Siapa**                                         | **Kebutuhan utama**                                                                              |
+|----------------------|---------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Admin                | Pengelola operasional dan pimpinan Metro Software | Memantau anak magang, mengatur status kerja, memberi tugas, mencatat keuangan, melihat dashboard |
+| Anak Magang          | Mahasiswa yang sedang magang, on-site atau remote | Absen setiap hari, mengisi logbook, melihat dan memperbarui tugasnya                             |
+| Finance              | Pengelola keuangan Metro Software                 | Mengelola kategori dan transaksi serta melihat ringkasan keuangan                                |
+| Operasional Magang   | Pengelola kegiatan magang Metro Software          | Mengelola data, absensi, logbook, penugasan, rekap, dan koreksi absensi anak magang              |
 
 ## Matriks Hak Akses
 
-| **Fitur**                                     | **Admin** | **Anak Magang** |
-|-----------------------------------------------|-----------|-----------------|
-| Dashboard ringkasan perusahaan                | Ya        | Tidak           |
-| Dashboard pribadi (absensi dan tugas sendiri) | Tidak     | Ya              |
-| Pengelolaan pengguna dan role                 | Ya        | Tidak           |
-| Pengaturan lokasi dan radius kantor           | Ya        | Tidak           |
+| **Fitur**                                     | **Admin** | **Anak Magang** | **Finance** | **Operasional Magang** |
+|-----------------------------------------------|-----------|-----------------|-------------|------------------------|
+| Dashboard ringkasan perusahaan                | Ya        | Tidak           | Tidak       | Tidak                  |
+| Dashboard pribadi (absensi dan tugas sendiri) | Tidak     | Ya              | Tidak       | Tidak                  |
+| Manajemen Magang                              | Ya        | Fitur sendiri   | Tidak       | Ya                     |
+| Manajemen Keuangan                            | Ya        | Tidak           | Ya          | Tidak                  |
+| Pengelolaan pengguna dan role                 | Ya        | Tidak           | Tidak       | Tidak                  |
+| Pengaturan lokasi dan radius kantor           | Ya        | Tidak           | Tidak       | Tidak                  |
 
 # Arsitektur Modular dan Navigasi
 
@@ -70,12 +74,12 @@ Modul Proyek digambar putus-putus karena baru direncanakan untuk tahap berikutny
 
 Sidebar dibangun dari daftar menu yang didaftarkan setiap modul, lalu disaring sesuai hak akses role. Menambah modul baru cukup dengan mendaftarkan menunya, tanpa mengubah layout.
 
-| **Grup Menu**      | **Admin**                                     | **Anak Magang**              |
-|--------------------|-----------------------------------------------|------------------------------|
-| Dashboard          | Dashboard                                     | Dashboard Saya               |
-| Manajemen Magang   | Data Anak Magang, Absensi, Logbook, Penugasan | Absensi, Logbook, Tugas Saya |
-| Manajemen Keuangan | Transaksi, Kategori, Ringkasan Keuangan       | Tidak tampil                 |
-| Pengaturan         | Pengguna dan Role, Lokasi Kantor              | Profil                       |
+| **Grup Menu**      | **Admin**                                     | **Anak Magang**              | **Finance**                              | **Operasional Magang**                          |
+|--------------------|-----------------------------------------------|------------------------------|------------------------------------------|-------------------------------------------------|
+| Dashboard          | Dashboard                                     | Dashboard Saya               | Tidak tampil                             | Tidak tampil                                    |
+| Manajemen Magang   | Data Anak Magang, Absensi, Logbook, Penugasan | Absensi, Logbook, Tugas Saya | Tidak tampil                             | Data Anak Magang, Absensi, Logbook, Penugasan   |
+| Manajemen Keuangan | Transaksi, Kategori, Ringkasan Keuangan       | Tidak tampil                 | Transaksi, Kategori, Ringkasan Keuangan  | Tidak tampil                                    |
+| Pengaturan         | Pengguna dan Role, Lokasi Kantor              | Profil                       | Profil                                   | Profil                                          |
 
 # Kebutuhan Fungsional
 
