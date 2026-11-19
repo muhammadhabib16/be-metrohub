@@ -8,7 +8,6 @@ const validate = require('../../../shared/middlewares/validate');
 
 const router = Router();
 
-// Anak magang
 router.get('/me', authorize(MAGANG.ABSEN), controller.listSaya);
 router.patch(
   '/:id/progress',
@@ -17,7 +16,6 @@ router.patch(
   controller.updateProgress,
 );
 
-// Admin
 router.get('/', authorize(MAGANG.KELOLA), validate({ query: schema.listQuery }), controller.list);
 router.post('/', authorize(MAGANG.KELOLA), validate({ body: schema.createSchema }), controller.create);
 router.patch('/:id', authorize(MAGANG.KELOLA), validate({ params: idParam, body: schema.updateSchema }), controller.update);

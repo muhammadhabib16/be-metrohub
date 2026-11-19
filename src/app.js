@@ -37,11 +37,9 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-// ===== REST API: /api/v1 =====
 const api = express.Router();
 
 api.get('/health', (req, res) => res.json({ success: true, message: 'OK' }));
-// Dokumentasi API (Swagger UI) dan spesifikasi OpenAPI mentah
 api.get('/docs.json', (req, res) => res.json(openapi));
 api.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'MetroHub API Docs' }));
 api.use(coreRouter);
@@ -52,7 +50,6 @@ api.use(notFound);
 
 app.use('/api/v1', api);
 
-// ===== Frontend (hasil build React/Vite disalin ke folder public/) =====
 const publicDir = path.join(__dirname, '..', 'public');
 const indexHtml = path.join(publicDir, 'index.html');
 

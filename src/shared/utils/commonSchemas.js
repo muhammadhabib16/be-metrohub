@@ -1,6 +1,5 @@
 const { z } = require('zod');
 
-// Schema Zod yang dipakai berulang di banyak modul
 const idParam = z.object({
   id: z.coerce.number().int().positive(),
 });

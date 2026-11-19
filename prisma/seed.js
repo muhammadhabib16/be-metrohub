@@ -1,15 +1,26 @@
-require('dotenv').config({ quiet: true });
-const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
-const { ROLES, permissionList: corePermissions } = require('../src/core/permissions');
-const { MAGANG, permissionList: magangPermissions } = require('../src/modules/magang/permissions');
-const { permissionList: keuanganPermissions } = require('../src/modules/keuangan/permissions');
+require("dotenv").config({ quiet: true });
+const bcrypt = require("bcryptjs");
+const { PrismaClient } = require("@prisma/client");
+const {
+  ROLES,
+  permissionList: corePermissions,
+} = require("../src/core/permissions");
+const {
+  MAGANG,
+  permissionList: magangPermissions,
+} = require("../src/modules/magang/permissions");
+const {
+  permissionList: keuanganPermissions,
+} = require("../src/modules/keuangan/permissions");
 
 const prisma = new PrismaClient();
 
-const semuaPermission = [...corePermissions, ...magangPermissions, ...keuanganPermissions].map((p) => p.code);
+const semuaPermission = [
+  ...corePermissions,
+  ...magangPermissions,
+  ...keuanganPermissions,
+].map((p) => p.code);
 
-// Hak akses bawaan tahap 1 (lihat Matriks Hak Akses di PRD)
 const HAK_AKSES = {
   [ROLES.ADMIN]: semuaPermission.filter((p) => p !== MAGANG.ABSEN),
   [ROLES.ANAK_MAGANG]: [MAGANG.ABSEN],
@@ -18,7 +29,11 @@ const HAK_AKSES = {
 async function seedRoles() {
   const roles = {};
   for (const [nama, permissions] of Object.entries(HAK_AKSES)) {
-    const role = await prisma.coreRole.upsert({ where: { nama }, create: { nama }, update: {} });
+    const role = await prisma.coreRole.upsert({
+      where: { nama },
+      create: { nama },
+      update: {},
+    });
     await prisma.coreRolePermission.createMany({
       data: permissions.map((permission) => ({ role_id: role.id, permission })),
       skipDuplicates: true,
@@ -34,10 +49,12 @@ function bacaKredensialAdmin() {
   const email = process.env.SEED_ADMIN_EMAIL?.trim();
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!email || !password) {
-    throw new Error('SEED_ADMIN_EMAIL dan SEED_ADMIN_PASSWORD wajib diisi di .env sebelum menjalankan seed');
+    throw new Error(
+      "SEED_ADMIN_EMAIL dan SEED_ADMIN_PASSWORD wajib diisi di .env sebelum menjalankan seed",
+    );
   }
   if (password.length < 8) {
-    throw new Error('SEED_ADMIN_PASSWORD minimal 8 karakter');
+    throw new Error("SEED_ADMIN_PASSWORD minimal 8 karakter");
   }
   return { email, password };
 }
@@ -46,7 +63,7 @@ async function seedAdmin(roleAdmin, { email, password }) {
   await prisma.coreUser.upsert({
     where: { email },
     create: {
-      nama: 'Administrator',
+      nama: "Administrator",
       email,
       password_hash: await bcrypt.hash(password, 10),
       role_id: roleAdmin.id,
@@ -71,7 +88,7 @@ async function main() {
   const roles = await seedRoles();
   await seedAdmin(roles[ROLES.ADMIN], kredensialAdmin);
   await seedOfficeSettings();
-  console.log('Seed selesai.');
+  console.log("Seed selesai.");
 }
 
 main()

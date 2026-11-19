@@ -17,7 +17,6 @@ router.get('/me', authorize(MAGANG.ABSEN), validate({ query: schema.periodeQuery
 router.post('/checkin', authorize(MAGANG.ABSEN), upload, validate({ body: schema.lokasiSchema }), controller.checkIn);
 router.post('/checkout', authorize(MAGANG.ABSEN), upload, validate({ body: schema.lokasiSchema }), controller.checkOut);
 
-// Admin
 router.get('/', authorize(MAGANG.KELOLA), validate({ query: schema.rekapQuery }), controller.rekap);
 router.get('/photos/:filename', authorize(MAGANG.KELOLA), validate({ params: schema.fotoParam }), controller.getFoto);
 router.patch('/:id', authorize(MAGANG.KELOLA), validate({ params: idParam, body: schema.koreksiSchema }), controller.koreksi);

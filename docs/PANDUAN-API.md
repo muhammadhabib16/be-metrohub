@@ -11,7 +11,7 @@ Dokumen ini menjelaskan hal-hal yang tidak terlihat di Swagger: alur, aturan, da
 | Lingkungan | Base URL API | Swagger |
 |---|---|---|
 | Lokal (backend dijalankan sendiri) | `http://localhost:3000/api/v1` | http://localhost:3000/api/v1/docs |
-| Server (homeserver) | `https://metrohub.habibdev.site/api/v1` | https://metrohub.habibdev.site/api/v1/docs |
+| Server | Disesuaikan dengan domain milik client (contoh: `https://metrohub.site/api/v1`) | https://metrohub.site/api/v1/docs |
 
 Cek server hidup: `GET /api/v1/health` → `{ "success": true, "message": "OK" }`.
 
@@ -21,7 +21,7 @@ Akun admin bawaan (hasil seed) diminta ke tim backend. Akun anak magang dibuat a
 
 **Swagger (paling cepat):** buka halaman Swagger, jalankan `POST /auth/login` dengan tombol *Try it out*.
 Cookie login tersimpan otomatis di browser, jadi endpoint lain bisa langsung dicoba.
-Endpoint bertanda ⏳ belum jadi dan masih mengembalikan 501.
+Semua endpoint pada daftar di bawah telah memiliki route backend; lihat Swagger untuk kontrak terbarunya.
 
 **Postman:** import `docs/postman/metrohub.postman_collection.json`. Ubah variabel `baseUrl` sesuai lingkungan.
 Koleksi ini bisa dijalankan berurutan dengan *Collection Runner*. Setiap request berisi contoh sukses dan gagal,
@@ -63,6 +63,11 @@ export const api = axios.create({ baseURL: '/api/v1', withCredentials: true });
 - **Akun nonaktif** tidak bisa login. Kalau akun dinonaktifkan saat sedang login, request berikutnya langsung mendapat 401.
 - **Selain cookie**, header `Authorization: Bearer <token>` juga diterima. Ini hanya untuk alat uji, karena token
   tidak dikembalikan di body respons login. Frontend cukup memakai cookie.
+- **Pencabutan sesi di server:** logout mencabut sesi token di database (`core_sessions`), sehingga token lama tidak
+  dapat dipakai ulang meskipun masa berlakunya belum habis (NF-04).
+- **Ubah password dan nonaktivasi:** `PATCH /auth/password` membutuhkan `password_lama` dan `password_baru`
+  (minimal 8 karakter), menghapus cookie, serta mencabut seluruh sesi akun di semua perangkat sehingga pengguna harus
+  login ulang. Nonaktivasi akun atau reset password oleh admin juga mencabut seluruh sesi terkait.
 
 ### Pengaturan development frontend (Vite)
 
@@ -76,18 +81,20 @@ export default defineConfig({
     proxy: {
       // Pilih salah satu target:
       '/api': 'http://localhost:3000', // backend lokal
-      // '/api': { target: 'https://metrohub.habibdev.site', changeOrigin: true }, // backend di server
+      // '/api': { target: 'https://metrohub.site', changeOrigin: true }, // backend di server
     },
   },
 });
 ```
 
 Di kode frontend, selalu pakai path relatif (`/api/v1/...`), jangan menulis domain backend.
-Request langsung dari `http://localhost:5173` ke `https://metrohub.habibdev.site` akan diblokir browser.
+Request langsung dari `http://localhost:5173` ke `https://metrohub.site` akan diblokir browser.
+Pada frontend, target proxy dapat diatur lewat variabel lingkungan `API_PROXY_TARGET` (default `http://localhost:3000`).
 
 ## 4. Format respons
 
-Semua endpoint (kecuali file foto) mengembalikan JSON dengan bentuk yang sama:
+Semua endpoint JSON umumnya mengembalikan bentuk yang sama. Endpoint `health` merupakan pengecualian dan
+mengembalikan `{ "success": true, "message": "OK" }` tanpa field `data`. File foto juga bukan JSON:
 
 ```json
 { "success": true, "message": "OK", "data": { } }
@@ -106,14 +113,13 @@ Semua endpoint (kecuali file foto) mengembalikan JSON dengan bentuk yang sama:
 
 | Status | Arti | Yang sebaiknya dilakukan frontend |
 |---|---|---|
-| 200 / 201 | Berhasil | |
+| 200 / 201 | Berhasil | Proses field `data` / tampilkan notifikasi berhasil |
 | 400 | Validasi gagal atau aturan bisnis dilanggar | Tampilkan `message` (dan `details` per field) |
 | 401 | Belum login, sesi habis, atau akun nonaktif | Arahkan ke halaman login |
 | 403 | Tidak punya izin | Tampilkan halaman "tidak punya akses" |
-| 404 | Data tidak ditemukan | |
+| 404 | Data tidak ditemukan | Tampilkan pesan data tidak ditemukan atau arahkan kembali |
 | 409 | Data duplikat atau masih dipakai data lain | Tampilkan `message` |
 | 413 | Foto lebih dari 500 KB | Kompres ulang foto |
-| 501 | Endpoint belum diimplementasikan | |
 | 500 | Kesalahan server | Laporkan ke tim backend |
 
 Contoh penanganan global dengan axios:
@@ -122,7 +128,7 @@ Contoh penanganan global dengan axios:
 api.interceptors.response.use(
   (res) => res.data, // langsung kembalikan { success, message, data }
   (err) => {
-    if (err.response?.status === 401) window.location.href = '/login';
+    if (err.response?.status === 401 && window.location.pathname !== '/login') window.location.href = '/login';
     return Promise.reject(err.response?.data ?? { message: 'Tidak dapat terhubung ke server' });
   },
 );
@@ -143,7 +149,7 @@ api.interceptors.response.use(
   new Date(jam_checkin).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
   ```
 - **"Hari ini"** selalu dihitung backend dalam WIB, jadi frontend tidak perlu mengirim tanggal untuk absensi dan logbook.
-- **Nilai enum** dikirim dan diterima dalam huruf besar:
+- **Nilai enum** dikirim dan diterima dalam huruf besar (khusus `jenis` keuangan juga menerima huruf kecil `pemasukan`/`pengeluaran` pada input dan dinormalisasi ke huruf besar di respons):
 
 | Field | Nilai | Teks tampilan |
 |---|---|---|
@@ -153,20 +159,26 @@ api.interceptors.response.use(
 
 ## 6. Hak akses dan sidebar
 
-Backend memeriksa **permission**, bukan nama role. Role bawaan:
+Backend memeriksa **permission**, bukan nama role. Empat role pada sistem:
 
 | Role | Permission |
 |---|---|
-| Admin | `core:dashboard`, `core:pengguna`, `core:lokasi`, `magang:kelola`, `keuangan:kelola`, `keuangan:lihat` |
+| Owner / Admin | `core:dashboard`, `core:pengguna`, `core:lokasi`, `magang:kelola`, `keuangan:kelola`, `keuangan:lihat` |
+| Finance | `keuangan:kelola`, `keuangan:lihat` |
+| Operasional Magang | `magang:kelola` |
 | Anak Magang | `magang:absen` |
 
 **Sidebar** diambil dari `GET /menu`, yang sudah disaring sesuai permission pengguna. Jangan menulis daftar menu
-secara manual di frontend:
+secara manual di frontend (contoh isi field `data` untuk role Anak Magang):
 
 ```json
 [
   { "group": "Dashboard", "items": [{ "label": "Dashboard Saya", "path": "/dashboard-saya" }] },
-  { "group": "Manajemen Magang", "items": [{ "label": "Absensi", "path": "/magang/absensi-saya" }] },
+  { "group": "Manajemen Magang", "items": [
+      { "label": "Absensi", "path": "/magang/absensi-saya" },
+      { "label": "Logbook", "path": "/magang/logbook-saya" },
+      { "label": "Tugas Saya", "path": "/magang/tugas-saya" }
+    ] },
   { "group": "Pengaturan", "items": [{ "label": "Profil", "path": "/profil" }] }
 ]
 ```
@@ -176,71 +188,81 @@ Menyembunyikan tombol hanya untuk tampilan: backend tetap menolak request tanpa 
 
 ## 7. Daftar endpoint
 
-Prefix semua path: `/api/v1`. ⏳ = belum jadi (501).
+Prefix semua path: `/api/v1`. Semua path berikut relatif terhadap prefix tersebut.
 
 ### Umum (semua pengguna yang login)
 
-| Method & Path | Fungsi |
-|---|---|
-| `POST /auth/login` | Login (publik) |
-| `POST /auth/logout` | Logout (publik) |
-| `GET /auth/me` | Data pengguna + permission |
-| `GET /menu` | Menu sidebar |
-| `PATCH /auth/password` | ⏳ Ubah password sendiri |
+| Method | Path | Fungsi |
+|---|---|---|
+| `POST` | `/auth/login` | Login (publik) |
+| `POST` | `/auth/logout` | Logout (publik) |
+| `GET` | `/auth/me` | Data pengguna + permission |
+| `GET` | `/menu` | Menu sidebar |
+| `PATCH` | `/auth/password` | Ubah password sendiri |
 
 ### Admin: Core
 
-| Method & Path | Permission | Fungsi |
-|---|---|---|
-| `GET /dashboard` | core:dashboard | Kartu ringkasan tiap modul |
-| `GET /users?q=&role_id=&aktif=` | core:pengguna | Daftar pengguna |
-| `POST /users` | core:pengguna | Tambah pengguna |
-| `GET /users/:id` · `PATCH /users/:id` | core:pengguna | Detail / ubah pengguna |
-| `PATCH /users/:id/status` | core:pengguna | Aktifkan / nonaktifkan |
-| `GET /roles` | core:pengguna | Daftar role |
-| `GET /roles/permissions` | core:pengguna | Semua permission per modul (untuk checkbox hak akses) |
-| `GET /roles/:id/permissions` · `PUT /roles/:id/permissions` | core:pengguna | Lihat / simpan hak akses role |
-| `GET /office-settings` · `PUT /office-settings` | core:lokasi | Lokasi dan radius kantor |
+| Method | Path | Permission | Fungsi |
+|---|---|---|---|
+| `GET` | `/dashboard` | core:dashboard | Kartu ringkasan tiap modul |
+| `GET` | `/users?q=&role_id=&aktif=` | core:pengguna | Daftar pengguna |
+| `POST` | `/users` | core:pengguna | Tambah pengguna |
+| `GET` | `/users/:id` | core:pengguna | Detail pengguna |
+| `PATCH` | `/users/:id` | core:pengguna | Ubah pengguna |
+| `PATCH` | `/users/:id/status` | core:pengguna | Aktifkan / nonaktifkan |
+| `GET` | `/roles` | core:pengguna | Daftar role |
+| `GET` | `/roles/permissions` | core:pengguna | Semua permission per modul (untuk checkbox hak akses) |
+| `GET` | `/roles/:id/permissions` | core:pengguna | Lihat hak akses role |
+| `PUT` | `/roles/:id/permissions` | core:pengguna | Simpan hak akses role |
+| `GET` | `/office-settings` | core:lokasi | Lihat lokasi dan radius kantor |
+| `PUT` | `/office-settings` | core:lokasi | Ubah lokasi dan radius kantor |
 
 ### Admin: Magang (`magang:kelola`)
 
-| Method & Path | Fungsi |
-|---|---|
-| `GET /magang/interns?q=&status_kerja=&aktif=` | Daftar anak magang |
-| `POST /magang/interns` | Tambah anak magang + akun login |
-| `GET /magang/interns/:id` · `PATCH /magang/interns/:id` | Detail / ubah |
-| `PATCH /magang/interns/:id/status-kerja` | Ubah on-site / remote |
-| `GET /magang/tasks?intern_id=&status=&terlambat=` | Daftar tugas |
-| `POST /magang/tasks` · `PATCH /magang/tasks/:id` · `DELETE /magang/tasks/:id` | Kelola tugas |
-| `GET /magang/attendances/photos/:filename` | File foto absensi |
-| `GET /magang/attendances?intern_id=&dari=&sampai=` | ⏳ Rekap absensi |
-| `GET /magang/logbooks?intern_id=&dari=&sampai=` | ⏳ Rekap logbook |
-| `PATCH /magang/attendances/:id` | ⏳ Koreksi absensi |
+| Method | Path | Fungsi |
+|---|---|---|
+| `GET` | `/magang/interns?q=&status_kerja=&aktif=` | Daftar anak magang |
+| `POST` | `/magang/interns` | Tambah anak magang + akun login |
+| `GET` | `/magang/interns/:id` | Detail anak magang |
+| `PATCH` | `/magang/interns/:id` | Ubah data anak magang |
+| `PATCH` | `/magang/interns/:id/status-kerja` | Ubah on-site / remote |
+| `GET` | `/magang/tasks?intern_id=&status=&terlambat=` | Daftar tugas |
+| `POST` | `/magang/tasks` | Buat tugas |
+| `PATCH` | `/magang/tasks/:id` | Ubah tugas |
+| `DELETE` | `/magang/tasks/:id` | Hapus tugas |
+| `GET` | `/magang/attendances/photos/:filename` | File foto absensi |
+| `GET` | `/magang/attendances?intern_id=&dari=&sampai=` | Rekap absensi |
+| `GET` | `/magang/logbooks?intern_id=&dari=&sampai=` | Rekap logbook |
+| `PATCH` | `/magang/attendances/:id` | Koreksi absensi |
 
 ### Anak magang (`magang:absen`)
 
-| Method & Path | Fungsi |
-|---|---|
-| `GET /magang/interns/me` | Profil magang + `sisa_hari` |
-| `GET /magang/attendances/today` | Status absensi hari ini |
-| `POST /magang/attendances/checkin` | Check-in (multipart) |
-| `POST /magang/attendances/checkout` | Check-out (multipart) |
-| `GET /magang/logbooks/today` · `PUT /magang/logbooks/today` | Lihat / isi logbook hari ini |
-| `GET /magang/logbooks/me?dari=&sampai=` | Riwayat logbook |
-| `GET /magang/tasks/me` | Tugas saya |
-| `PATCH /magang/tasks/:id/progress` | Perbarui status + catatan progres |
-| `GET /magang/attendances/me?dari=&sampai=` | ⏳ Riwayat absensi saya |
+| Method | Path | Fungsi |
+|---|---|---|
+| `GET` | `/magang/interns/me` | Profil magang + `sisa_hari` |
+| `GET` | `/magang/attendances/today` | Status absensi hari ini |
+| `POST` | `/magang/attendances/checkin` | Check-in (multipart) |
+| `POST` | `/magang/attendances/checkout` | Check-out (multipart) |
+| `GET` | `/magang/logbooks/today` | Lihat logbook hari ini |
+| `PUT` | `/magang/logbooks/today` | Isi / ubah logbook hari ini |
+| `GET` | `/magang/logbooks/me?dari=&sampai=` | Riwayat logbook |
+| `GET` | `/magang/tasks/me` | Tugas saya |
+| `PATCH` | `/magang/tasks/:id/progress` | Perbarui status + catatan progres |
+| `GET` | `/magang/attendances/me?dari=&sampai=` | Riwayat absensi saya |
 
 ### Admin: Keuangan
 
-| Method & Path | Permission | Fungsi |
-|---|---|---|
-| `GET /keuangan/categories?jenis=&aktif=` | keuangan:kelola | Daftar kategori |
-| `POST /keuangan/categories` · `PATCH /keuangan/categories/:id` · `DELETE /keuangan/categories/:id` | keuangan:kelola | Kelola kategori |
-| `POST /keuangan/transactions` | keuangan:kelola | Catat transaksi |
-| `PATCH /keuangan/transactions/:id` · `DELETE /keuangan/transactions/:id` | keuangan:kelola | Ubah / hapus transaksi |
-| `GET /keuangan/transactions?bulan=` atau `?dari=&sampai=` | keuangan:kelola | ⏳ Tabel debit-kredit + saldo |
-| `GET /keuangan/summary?bulan=YYYY-MM` | keuangan:lihat | ⏳ Ringkasan bulanan |
+| Method | Path | Permission | Fungsi |
+|---|---|---|---|
+| `GET` | `/keuangan/categories?jenis=&aktif=` | keuangan:kelola | Daftar kategori |
+| `POST` | `/keuangan/categories` | keuangan:kelola | Tambah kategori |
+| `PATCH` | `/keuangan/categories/:id` | keuangan:kelola | Ubah / nonaktifkan kategori |
+| `DELETE` | `/keuangan/categories/:id` | keuangan:kelola | Hapus kategori (jika belum dipakai) |
+| `POST` | `/keuangan/transactions` | keuangan:kelola | Catat transaksi |
+| `PATCH` | `/keuangan/transactions/:id` | keuangan:kelola | Ubah transaksi |
+| `DELETE` | `/keuangan/transactions/:id` | keuangan:kelola | Hapus transaksi (soft delete) |
+| `GET` | `/keuangan/transactions?bulan=&jenis=&category_id= atau ?dari=&sampai=` | keuangan:kelola | Tabel debit-kredit + saldo berjalan |
+| `GET` | `/keuangan/summary?bulan=YYYY-MM` | keuangan:lihat | Ringkasan bulanan |
 
 ## 8. Alur absensi harian (anak magang)
 
@@ -249,7 +271,7 @@ Urutan wajib: **check-in → isi logbook → check-out**. Semua aturan dicek di 
 ### 8.1 Ambil status hari ini
 
 Panggil `GET /magang/attendances/today` saat halaman absensi dibuka dan setelah setiap aksi.
-Pakai field-nya untuk mengunci atau membuka tombol:
+Pakai field-nya untuk mengunci atau membuka tombol (contoh isi field `data`):
 
 ```json
 {
@@ -309,7 +331,7 @@ Kemungkinan respons:
 
 | Status | Penyebab | Contoh `message` |
 |---|---|---|
-| 201 / 200 | Berhasil | `Check-in berhasil` |
+| 201 / 200 | Berhasil (201 check-in, 200 check-out) | `Check-in berhasil / Check-out berhasil` |
 | 400 | Foto tidak ada | `Foto wajah wajib diambil` |
 | 400 | On-site di luar radius (BR-01) | `Anda berada 250 meter dari kantor. Absensi on-site hanya bisa dalam radius 100 meter.` |
 | 400 | Di luar masa magang (BR-07) | `Masa magang Anda sudah berakhir` |
@@ -326,6 +348,7 @@ await api.put('/magang/logbooks/today', { isi: 'Membuat halaman login dan dashbo
 ```
 
 - **Isi kosong** atau hanya spasi ditolak.
+- **Hanya bisa diisi setelah check-in**; pengiriman sebelum check-in ditolak dengan status 400.
 - **Bisa diubah berkali-kali** sampai check-out. Setelah check-out, perubahan ditolak (400).
 - **`GET /magang/logbooks/today`** mengembalikan `data: null` jika logbook hari ini belum diisi.
 
@@ -408,6 +431,30 @@ POST /api/v1/keuangan/transactions
 
 Cookie admin ikut terkirim otomatis karena satu origin. Anak magang dan pengguna yang belum login tidak bisa membuka foto (NF-06).
 
+### Ubah password
+
+```http
+PATCH /api/v1/auth/password
+Content-Type: application/json
+{ "password_lama": "rahasia123", "password_baru": "rahasiaBaru123" }
+```
+
+Password baru minimal 8 karakter. Setelah berhasil, cookie login dihapus dan seluruh sesi akun di semua perangkat dicabut sehingga pengguna perlu login kembali.
+
+### Koreksi absensi (admin)
+
+```http
+PATCH /api/v1/magang/attendances/12
+Content-Type: application/json
+{
+  "jam_checkin": "2026-11-13T08:05:00+07:00",
+  "jam_checkout": "2026-11-13T17:00:00+07:00",
+  "keterangan_koreksi": "Kendala jaringan saat check-out"
+}
+```
+
+`keterangan_koreksi` wajib diisi. `jam_checkin` dan `jam_checkout` memakai format ISO 8601 dengan offset zona waktu (kirim `jam_checkout: null` untuk mengosongkan check-out). Respons menyertakan `nama_admin_koreksi` sebagai jejak audit (MG-10).
+
 ## 10. Masalah yang sering terjadi
 
 | Gejala | Penyebab dan solusi |
@@ -418,7 +465,7 @@ Cookie admin ikut terkirim otomatis karena satu origin. Anak magang dan pengguna
 | Kamera atau GPS tidak muncul di HP | Halaman dibuka lewat HTTP. Buka lewat domain HTTPS. |
 | 413 saat check-in | Foto lebih dari 500 KB. Kompres sebelum upload. |
 | Angka di field `role_id` / `intern_id` / `category_id` ditolak | Kirim sebagai number (`3`), bukan string (`"3"`). |
-| Endpoint mengembalikan 501 | Endpoint belum diimplementasikan (bertanda ⏳). |
+| Endpoint tidak ditemukan (404) | Pastikan prefix `/api/v1`, path, dan method sesuai dengan Swagger. |
 
 Ada pertanyaan atau menemukan respons yang tidak sesuai dokumen? Hubungi tim backend
 dengan menyertakan method, path, body request, dan respons yang diterima.

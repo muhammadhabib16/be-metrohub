@@ -6,7 +6,6 @@ const prisma = require('../../config/prisma');
 const { AppError } = require('../../shared/utils/AppError');
 const { verifikasiToken } = require('./session');
 
-// CR-01: login dengan email dan password
 async function login(email, password) {
   const user = await prisma.coreUser.findUnique({
     where: { email },

@@ -11,7 +11,6 @@ const permissionList = [
   { code: CORE.LOKASI, deskripsi: 'Mengatur titik koordinat dan radius kantor' },
 ];
 
-// Nama role bawaan tahap 1
 const ROLES = {
   ADMIN: 'Admin',
   ANAK_MAGANG: 'Anak Magang',

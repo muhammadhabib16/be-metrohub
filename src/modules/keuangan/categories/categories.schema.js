@@ -6,7 +6,6 @@ const listQuery = z.object({
   aktif: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
 });
 
-// KU-01
 const createSchema = z.object({
   nama: z.string().trim().min(1, 'Nama kategori wajib diisi').max(100),
   jenis,

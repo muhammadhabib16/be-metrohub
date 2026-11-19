@@ -11,7 +11,6 @@ const router = Router();
 // Anak magang (route /me harus di atas /:id)
 router.get('/me', authorize(MAGANG.ABSEN), controller.getProfilSaya);
 
-// Admin
 router.get('/', authorize(MAGANG.KELOLA), validate({ query: schema.listQuery }), controller.list);
 router.post('/', authorize(MAGANG.KELOLA), validate({ body: schema.createSchema }), controller.create);
 router.get('/:id', authorize(MAGANG.KELOLA), validate({ params: idParam }), controller.getById);

@@ -122,7 +122,6 @@ async function checkIn(userId, { latitude, longitude }, foto) {
   return formatAbsensi(absensi);
 }
 
-// MG-05
 async function checkOut(userId, { latitude, longitude }, foto) {
   cekFoto(foto);
   const intern = await internsService.getByUserId(userId);

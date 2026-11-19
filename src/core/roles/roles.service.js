@@ -3,7 +3,6 @@ const modules = require('../../modules');
 const { CORE, permissionList: corePermissions } = require('../permissions');
 const { AppError } = require('../../shared/utils/AppError');
 
-// CR-03: daftar role beserta jumlah pengguna
 async function list() {
   const roles = await prisma.coreRole.findMany({
     include: { _count: { select: { users: true } } },
