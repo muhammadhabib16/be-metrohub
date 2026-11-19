@@ -10,6 +10,7 @@ const {
   permissionList: magangPermissions,
 } = require("../src/modules/magang/permissions");
 const {
+  KEUANGAN,
   permissionList: keuanganPermissions,
 } = require("../src/modules/keuangan/permissions");
 
@@ -24,6 +25,8 @@ const semuaPermission = [
 const HAK_AKSES = {
   [ROLES.ADMIN]: semuaPermission.filter((p) => p !== MAGANG.ABSEN),
   [ROLES.ANAK_MAGANG]: [MAGANG.ABSEN],
+  [ROLES.FINANCE]: [KEUANGAN.KELOLA, KEUANGAN.LIHAT],
+  [ROLES.OPERASIONAL_MAGANG]: [MAGANG.KELOLA],
 };
 
 async function seedRoles() {

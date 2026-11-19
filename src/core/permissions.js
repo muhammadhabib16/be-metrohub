@@ -14,6 +14,8 @@ const permissionList = [
 const ROLES = {
   ADMIN: 'Admin',
   ANAK_MAGANG: 'Anak Magang',
+  FINANCE: 'Finance',
+  OPERASIONAL_MAGANG: 'Operasional Magang',
 };
 
 module.exports = { CORE, permissionList, ROLES };
